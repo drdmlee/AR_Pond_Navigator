@@ -1,5 +1,5 @@
 /* 오프라인용 Service Worker: 앱 파일 + 위성 타일 캐시 */
-const APP_CACHE = 'lpn-app-v1';
+const APP_CACHE = 'lpn-app-v2';
 const TILE_CACHE = 'lpn-tiles-v1';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/app.css',

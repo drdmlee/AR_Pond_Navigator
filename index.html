@@ -16,7 +16,32 @@
 </head>
 <body>
   <div id="root"></div>
-  <noscript>JavaScript가 필요합니다.</noscript>
+  <noscript>
+    <div style="padding:24px;font:16px/1.6 sans-serif;color:#f1f5f9">
+      <b>이 브라우저에서 JavaScript가 꺼져 있습니다.</b><br>
+      Chrome: 메뉴(⋮) → 설정 → 사이트 설정 → JavaScript → 허용 후 새로고침<br>
+      (앱 내 브라우저·데이터 절약/라이트 모드에서는 Chrome으로 열어 주세요)
+    </div>
+  </noscript>
+  <div id="boot-err" style="display:none;padding:20px;font:14px/1.5 sans-serif;color:#fecaca;white-space:pre-wrap;word-break:break-all"></div>
+  <script>
+    (function () {
+      function show(msg) {
+        var el = document.getElementById('boot-err');
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = '앱 실행 오류 — 아래 내용을 캡처해 전달해 주세요.\n\n' + msg + '\n\nUA: ' + navigator.userAgent;
+      }
+      window.addEventListener('error', function (e) { show((e.message || 'error') + ' @ ' + (e.filename || '') + ':' + (e.lineno || '')); });
+      window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && e.reason.message || e.reason)); });
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          var r = document.getElementById('root');
+          if (r && !r.children.length) show('화면이 생성되지 않았습니다 (root empty).');
+        }, 6000);
+      });
+    })();
+  </script>
   <script src="lib/react.production.min.js"></script>
   <script src="lib/react-dom.production.min.js"></script>
   <script src="lib/htm.umd.js"></script>
