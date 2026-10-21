@@ -1,0 +1,5 @@
+{
+  "type": "FeatureCollection",
+  "lpn": { "updated": "2026-10-22", "note": "공용 목적지/도로. Point = 공용 지점(name, note, 선택: id), LineString = 공용 도로(name)" },
+  "features": []
+}

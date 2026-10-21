@@ -52,3 +52,13 @@ lib/          React 18.3.1, Leaflet 1.9.4, htm 3.1.1 (로컬 포함 → CDN 불�
 3. Settings → Pages → Source: `Deploy from a branch`, Branch: `main` / `(root)` → Save
 4. 1–2분 후 `https://<계정>.github.io/AR_Pond_Navigator/` 접속 → 폰에서 "홈 화면에 추가"
 > 공개 저장소의 Pages 사이트는 URL을 아는 누구나 접속할 수 있습니다. Pond 좌표가 포함되어 있으므로 공개 범위를 확인하세요.
+
+## 6. 공용 목적지·도로 (shared.geojson)
+- 앱은 시작할 때 저장소 루트의 `shared.geojson`을 자동으로 받습니다(네트워크 우선, 오프라인이면 마지막 수신본 사용). 모든 사용자에게 ◆ 공용 지점 / 연두색 공용 도로로 표시되고 경로탐색에 포함됩니다.
+- 사용자는 공용 항목을 수정·삭제할 수 없고 **숨김**만 가능합니다.
+- **등록 절차(관리자)**
+  1. 등록자: 앱 **메뉴 → 데이터 → 내보내기**로 `.geojson` 파일을 만들어 관리자에게 전달합니다.
+  2. 관리자: GitHub에서 `shared.geojson`을 열고 ✏️(Edit)를 누릅니다. 받은 파일의 `features` 항목을 기존 `features` 배열에 붙여 넣고, `lpn.updated` 날짜를 고친 뒤 **Commit changes**를 누릅니다.
+  3. 1–2분 뒤 사용자 앱에 반영됩니다(앱 재실행 또는 **공용 목록 갱신**).
+- Point의 `properties.id`를 지정하면 이름을 바꿔도 사용자의 숨김/목적지 설정이 유지됩니다.
+

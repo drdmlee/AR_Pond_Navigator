@@ -4,7 +4,7 @@
   const { useState, useEffect, useRef, useMemo } = React;
   const html = htm.bind(React.createElement);
   const G = window.LPNGeo;
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
 
   // ---------- 저장소 ----------
   const LS = {
@@ -28,6 +28,7 @@
     t: { color: '#fde047', weight: 2.5, opacity: 0.85, dashArray: '7 5' },
     s: { color: '#fdba74', weight: 2.5, opacity: 0.85 },
     user: { color: '#22d3ee', weight: 4, opacity: 0.95 },
+    shared: { color: '#a3e635', weight: 4, opacity: 0.95 },
   };
   const DEFAULTS = {
     lang: 'ko', arriveRadius: 30, defSpeed: 20, keepAwake: true, pondTarget: 'edge', maxOff: 1500,
@@ -40,6 +41,25 @@
   const fmtTime = (sec, t) => { if (!isFinite(sec)) return '—'; const m = Math.round(sec / 60); return m < 60 ? Math.max(1, m) + ' ' + t('min') : Math.floor(m / 60) + t('hr') + ' ' + (m % 60) + t('min'); };
   const bboxOf = ponds => { let s = 90, w = 180, n = -90, e = -180; ponds.forEach(p => p.ring.forEach(([la, lo]) => { s = Math.min(s, la); n = Math.max(n, la); w = Math.min(w, lo); e = Math.max(e, lo); })); return [s, w, n, e]; };
 
+  // 공용 목록(shared.geojson) 파서: Point → 공용 지점, LineString → 공용 도로
+  function parseShared(j) {
+    if (!j || j.type !== 'FeatureCollection' || !Array.isArray(j.features)) throw new Error('shared.geojson: FeatureCollection');
+    const points = [], roads = [];
+    j.features.forEach((f, i) => {
+      const g = f && f.geometry, p = (f && f.properties) || {}; if (!g) return;
+      if (g.type === 'Point') {
+        const [lon, lat] = g.coordinates; if (!isFinite(lat) || !isFinite(lon)) return;
+        const name = String(p.name || p.code || 'Point ' + (i + 1));
+        points.push({ id: 's:' + (p.id || name + '@' + lat.toFixed(6) + ',' + lon.toFixed(6)), name, note: p.note || '', lat, lon });
+      } else if (g.type === 'LineString' || g.type === 'MultiLineString') {
+        (g.type === 'LineString' ? [g.coordinates] : g.coordinates).forEach((ls, k) => {
+          if (ls.length >= 2) roads.push({ id: 'sr:' + i + '.' + k, name: String(p.name || 'Road'), coords: ls.map(([x, y]) => [y, x]) });
+        });
+      }
+    });
+    return { points, roads, updated: (j.lpn && j.lpn.updated) || null };
+  }
+
   function App() {
     // ---------- 상태 ----------
     const [settings, setSettings] = usePersist('settings', DEFAULTS);
@@ -51,6 +71,9 @@
     const [pondOverride, setPondOverride] = usePersist('pondsOverride', null);
     const ponds = useMemo(() => pondOverride ? pondOverride.map(p => G.mkPond(p.code, p.site, p.string, p.pond, p.area_m2, p.ring)) : BASE_PONDS, [pondOverride]);
     const [customs, setCustoms] = usePersist('customs', []);
+    const [shared, setShared] = usePersist('shared', null); // { fetched, updated, points, roads }
+    const sharedPts = shared ? shared.points : [];
+    const sharedRoads = shared ? shared.roads : [];
     const [hidden, setHidden] = usePersist('hidden', []);
     const [userRoads, setUserRoads] = usePersist('userRoads', []);
     const [osm, setOsm] = usePersist('osm', null);
@@ -79,9 +102,22 @@
     const dests = useMemo(() => [
       ...ponds,
       ...customs.map(c => ({ ...c, type: 'custom', center: [c.lat, c.lon] })),
-    ], [ponds, customs]);
+      ...sharedPts.map(c => ({ ...c, type: 'shared', center: [c.lat, c.lon] })),
+    ], [ponds, customs, sharedPts]);
     const dest = dests.find(d => d.id === destId) || null;
     const here = pos ? [pos.lat, pos.lon] : null;
+
+    // ---------- 공용 목록 자동 불러오기 ----------
+    async function refreshShared(manual) {
+      try {
+        const r = await fetch('shared.geojson?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = parseShared(await r.json());
+        setShared({ ...d, fetched: new Date().toISOString() });
+        if (manual) say(`${t('sharedPts')} ${d.points.length} · ${t('sharedRoads')} ${d.roads.length}`);
+      } catch (e) { if (manual) say(t('sharedFail') + ' (' + e.message + ')', 4000); }
+    }
+    useEffect(() => { refreshShared(false); }, []);
 
     // ---------- GPS ----------
     useEffect(() => {
@@ -160,7 +196,7 @@
 
     // ---------- 도로 그래프 & 경로 ----------
     const dikeLines = useMemo(() => S.dikes ? ponds.map(p => ({ id: 'dike:' + p.code, kind: 'dike', coords: [...p.ring, p.ring[0]] })) : [], [ponds, S.dikes]);
-    const graph = useMemo(() => G.buildGraph([...osmLines, ...userRoads, ...dikeLines]), [osmLines, userRoads, dikeLines]);
+    const graph = useMemo(() => G.buildGraph([...osmLines, ...userRoads, ...sharedRoads, ...dikeLines]), [osmLines, userRoads, sharedRoads, dikeLines]);
     const obstacles = useMemo(() => G.makeObstacles(ponds), [ponds]);
     const lastRoute = useRef({});
     useEffect(() => {
@@ -266,7 +302,7 @@
         if (draw || S.sim) return H.current.onClick(e);
         const div = document.createElement('div'); div.className = 'pop';
         div.innerHTML = '<b></b><div class="pop-sub"></div>';
-        div.querySelector('b').textContent = '★ ' + c.name;
+        div.querySelector('b').textContent = (c.kind === 'shared' ? '◆ ' : '★ ') + c.name;
         div.querySelector('.pop-sub').textContent = (c.note ? c.note + ' · ' : '') + c.lat.toFixed(5) + ', ' + c.lon.toFixed(5);
         const b = document.createElement('button'); b.textContent = t('setDest');
         b.onclick = () => { setDestId(c.id); mapRef.current.closePopup(); };
@@ -294,16 +330,16 @@
     // 사용자 지점
     useEffect(() => {
       const g = lay.current.customs; g.clearLayers();
-      customs.forEach(c => {
+      [...customs.map(c => ({ ...c, kind: 'custom' })), ...sharedPts.filter(c => !hidden.includes(c.id)).map(c => ({ ...c, kind: 'shared' }))].forEach(c => {
         const m = L.marker([c.lat, c.lon], {
-          icon: L.divIcon({ className: 'cpin' + (c.id === destId ? ' is-dest' : ''), html: '<span>★</span><em></em>', iconSize: [28, 28], iconAnchor: [14, 14] }),
+          icon: L.divIcon({ className: 'cpin' + (c.kind === 'shared' ? ' shared' : '') + (c.id === destId ? ' is-dest' : ''), html: '<span>' + (c.kind === 'shared' ? '◆' : '★') + '</span><em></em>', iconSize: [28, 28], iconAnchor: [14, 14] }),
           bubblingMouseEvents: false,
         });
         m.on('add', () => { const el = m.getElement(); if (el) el.querySelector('em').textContent = c.name; });
         m.on('click', e => H.current.onCustomClick(c, e));
         g.addLayer(m);
       });
-    }, [customs, destId]);
+    }, [customs, sharedPts, hidden, destId]);
 
     // 도로
     useEffect(() => {
@@ -311,7 +347,8 @@
       if (!S.showRoads) return;
       osmLines.forEach(r => g.addLayer(L.polyline(r.coords, { ...(ROAD_STYLE[r.kind] || ROAD_STYLE.u), interactive: false })));
       userRoads.forEach(r => g.addLayer(L.polyline(r.coords, { ...ROAD_STYLE.user, interactive: false })));
-    }, [osmLines, userRoads, S.showRoads]);
+      sharedRoads.forEach(r => g.addLayer(L.polyline(r.coords, { ...ROAD_STYLE.shared, interactive: false })));
+    }, [osmLines, userRoads, sharedRoads, S.showRoads]);
 
     // 경로 / 목적지
     useEffect(() => {
@@ -517,7 +554,10 @@
           <select className="dest-select" value=${destId} onChange=${e => chooseDest(e.target.value)} aria-label=${t('selectDest')}>
             <option value="">${t('selectDest')}</option>
             ${nearest.length > 0 && html`<optgroup label=${'📍 ' + t('near')}>
-              ${nearest.map(({ d, m }) => html`<option key=${'n' + d.id} value=${d.id}>${(d.type === 'custom' ? '★ ' : '') + (d.code || d.name)} · ${fmtDist(m)}</option>`)}
+              ${nearest.map(({ d, m }) => html`<option key=${'n' + d.id} value=${d.id}>${(d.type === 'custom' ? '★ ' : d.type === 'shared' ? '◆ ' : '') + (d.code || d.name)} · ${fmtDist(m)}</option>`)}
+            </optgroup>`}
+            ${sharedPts.some(c => !hidden.includes(c.id) || c.id === destId) && html`<optgroup label=${'◆ ' + t('sharedPts')}>
+              ${sharedPts.filter(c => !hidden.includes(c.id) || c.id === destId).map(c => html`<option key=${c.id} value=${c.id}>◆ ${c.name}</option>`)}
             </optgroup>`}
             ${customs.length > 0 && html`<optgroup label=${'★ ' + t('custom')}>
               ${customs.map(c => html`<option key=${c.id} value=${c.id}>★ ${c.name}</option>`)}
@@ -555,7 +595,7 @@
                 <span className="arrow-mode">${heading != null ? '▲' : 'N'}</span>
               </div>
               <div className="nav-main">
-                <div className="nav-name">${dest.type === 'custom' ? '★ ' + dest.name : dest.code}
+                <div className="nav-name">${dest.type === 'custom' ? '★ ' + dest.name : dest.type === 'shared' ? '◆ ' + dest.name : dest.code}
                   ${near && html`<span className="nav-near"> · ${near.inside ? t('inside') : t('near')} ${near.p.code.replace('CP2_', '')}</span>`}</div>
                 ${arrived ? html`<div className="nav-big">🏁 ${t('arrived')}</div>` : html`
                   <div className="nav-big">${fmtDist(remain)}<small>${routeRes && routeRes.ok ? t('routeDist') : t('distance')}</small></div>
@@ -589,13 +629,20 @@
                 <button onClick=${() => setModal({ lat: '', lon: '', name: '', note: '' })}>⌨ ${t('addCoord')}</button>
               </div>
               <p className="hint">💡 ${t('addHere')}: ${S.lang === 'ko' ? '지도를 길게 누르세요' : S.lang === 'es' ? 'mantenga presionado el mapa' : 'long-press the map'}</p>
+              <h4>◆ ${t('sharedPts')} (${sharedPts.length})
+                <button className="link" onClick=${() => refreshShared(true)}>⟳ ${t('refreshShared')}</button></h4>
+              ${sharedPts.map(c => { const hid = hidden.includes(c.id); return html`<div className=${'row' + (hid ? ' dim' : '')} key=${c.id}>
+                <div className="row-main" onClick=${() => !hid && chooseDest(c.id)}><b>${c.name}</b><small>${c.note ? c.note + ' · ' : ''}${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}${here ? ' · ' + fmtDist(G.haversine(here, [c.lat, c.lon])) : ''}</small></div>
+                ${!hid && html`<button className="go" onClick=${() => chooseDest(c.id)}>➜</button>`}
+                <button className=${hid ? 'restore' : 'del'} onClick=${() => toggleHide(c.id)}>${hid ? t('restore') : t('hide')}</button>
+              </div>`; })}
               <h4>★ ${t('custom')} (${customs.length})</h4>
               ${customs.map(c => html`<div className="row" key=${c.id}>
                 <div className="row-main" onClick=${() => chooseDest(c.id)}><b>${c.name}</b><small>${c.note ? c.note + ' · ' : ''}${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}${here ? ' · ' + fmtDist(G.haversine(here, [c.lat, c.lon])) : ''}</small></div>
                 <button className="go" onClick=${() => chooseDest(c.id)}>➜</button>
                 <button className="del" onClick=${() => delCustom(c.id)}>${t('del')}</button>
               </div>`)}
-              <h4>${t('ponds')} (${ponds.length - hidden.length}/${ponds.length})
+              <h4>${t('ponds')} (${ponds.filter(p => !hidden.includes(p.id)).length}/${ponds.length})
                 ${hidden.length > 0 && html`<button className="link" onClick=${() => setHidden([])}>${t('restoreAll')}</button>`}</h4>
               <input className="search" placeholder=${t('filter')} value=${filter} onChange=${e => setFilter(e.target.value)} />
               ${ponds.filter(p => !q || p.code.toUpperCase().includes(q)).map(p => { const hid = hidden.includes(p.id); return html`<div className=${'row' + (hid ? ' dim' : '')} key=${p.id}>
@@ -613,7 +660,7 @@
                 <button disabled=${!!draw} onClick=${() => { setDraw([]); setSheet(null); setFollow(false); }}>✎ ${t('drawStart')}</button>
               </div>
               <h4>${t('osmRoads')} · ${osmLines.length} <small>(${osm ? osm.date : t('snapshot') + ' ' + window.LPN_ROADS_SNAPSHOT_DATE})</small></h4>
-              <div className="legend"><i className="lg u"></i>unclassified <i className="lg t"></i>track <i className="lg s"></i>service <i className="lg user"></i>${t('userRoads').split(' (')[0]}</div>
+              <div className="legend"><i className="lg u"></i>unclassified <i className="lg t"></i>track <i className="lg s"></i>service <i className="lg user"></i>${t('userRoads').split(' (')[0]} <i className="lg shared"></i>${t('sharedRoads')} (${sharedRoads.length})</div>
               <div className="btn-row"><button disabled=${busy === 'osm'} onClick=${refreshOsm}>⟳ ${busy === 'osm' ? t('refreshing') : t('refreshOsm')}</button></div>
               <h4>${t('userRoads')} (${userRoads.length})</h4>
               ${userRoads.map(r => html`<div className="row" key=${r.id}>
@@ -646,6 +693,11 @@
               <label className="tog"><input type="checkbox" checked=${S.sim} onChange=${e => { setS({ sim: e.target.checked }); setPos(null); }} /> ${t('simMode')}</label>`}
 
             ${tab === 'data' && html`
+              <h4>◆ ${t('sharedList')}</h4>
+              <p className="hint">${t('sharedPts')} ${sharedPts.length} · ${t('sharedRoads')} ${sharedRoads.length}${shared && shared.updated ? ' · ' + t('sharedEdited') + ' ' + shared.updated : ''}${shared && shared.fetched ? ' · ' + t('sharedFetched') + ' ' + new Date(shared.fetched).toLocaleString() : ''}</p>
+              <p className="hint small">${t('sharedInfo')}</p>
+              <div className="btn-row"><button onClick=${() => refreshShared(true)}>⟳ ${t('refreshShared')}</button></div>
+              <h4>${t('tabData')}</h4>
               <p className="hint">${t('dataInfo')}</p>
               <div className="btn-row col">
                 <button onClick=${shareLoc}>🆘 ${t('shareLoc')}</button>

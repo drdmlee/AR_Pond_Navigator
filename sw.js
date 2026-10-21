@@ -1,12 +1,12 @@
 /* 오프라인용 Service Worker: 앱 파일 + 위성 타일 캐시 */
-const APP_CACHE = 'lpn-app-v2';
+const APP_CACHE = 'lpn-app-v3';
 const TILE_CACHE = 'lpn-tiles-v1';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './lib/leaflet.css', './lib/leaflet.js', './lib/react.production.min.js', './lib/react-dom.production.min.js', './lib/htm.umd.js',
   './lib/images/marker-icon.png', './lib/images/marker-shadow.png', './lib/images/layers.png',
   './js/ponds.js', './js/roads.js', './js/geo.js', './js/i18n.js', './js/app.js',
-  './icons/icon-192.png', './icons/icon-512.png',
+  './icons/icon-192.png', './icons/icon-512.png', './shared.geojson',
 ];
 
 self.addEventListener('install', e => {
@@ -33,6 +33,20 @@ self.addEventListener('fetch', e => {
         return res;
       } catch (err) {
         return new Response('', { status: 504 });
+      }
+    }));
+    return;
+  }
+
+  // 공용 목록: 네트워크 우선, 실패 시 캐시 (오프라인 대응)
+  if (url.origin === self.location.origin && url.pathname.endsWith('/shared.geojson')) {
+    e.respondWith(caches.open(APP_CACHE).then(async c => {
+      try {
+        const res = await fetch(req, { cache: 'no-store' });
+        if (res.ok) c.put('shared.geojson', res.clone());
+        return res;
+      } catch (err) {
+        return (await c.match('shared.geojson')) || new Response('{"type":"FeatureCollection","features":[]}', { headers: { 'Content-Type': 'application/geo+json' } });
       }
     }));
     return;

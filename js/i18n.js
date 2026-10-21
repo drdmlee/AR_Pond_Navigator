@@ -1,6 +1,8 @@
 /* 다국어 문자열 (KO / EN / ES) */
 window.LPN_I18N = {
   ko: {
+    sharedPts: '공용 지점', sharedRoads: '공용 도로', sharedList: '공용 목록 (모든 사용자 공통)', refreshShared: '공용 목록 갱신', sharedFail: '공용 목록을 불러오지 못했습니다', hide: '숨김', sharedEdited: '편집', sharedFetched: '수신',
+    sharedInfo: '앱이 켜질 때 서버의 shared.geojson을 자동으로 받아 옵니다(오프라인이면 마지막 수신본 사용). 내 지점을 공용으로 올리려면 [내보내기] 파일을 관리자에게 전달하세요.',
     title: 'Pond 내비', selectDest: '목적지 선택…', ponds: 'Pond', custom: '사용자 지점',
     distance: '직선거리', routeDist: '경로거리', eta: '예상 소요', bearing: '방위',
     gpsWait: 'GPS 신호 대기 중…', gpsDenied: '위치 권한이 거부되었습니다. 브라우저 설정에서 허용하세요.',
@@ -34,6 +36,8 @@ window.LPN_I18N = {
     noDest: '목적지를 선택하세요', updateAvail: '새 버전이 있습니다. 다시 열면 적용됩니다.',
   },
   en: {
+    sharedPts: 'Shared places', sharedRoads: 'Shared roads', sharedList: 'Shared list (all users)', refreshShared: 'Refresh shared list', sharedFail: 'Could not load the shared list', hide: 'Hide', sharedEdited: 'edited', sharedFetched: 'received',
+    sharedInfo: 'shared.geojson is downloaded automatically at app start (last copy used offline). To publish your places, send your [Export] file to the administrator.',
     title: 'Pond Navi', selectDest: 'Select destination…', ponds: 'Ponds', custom: 'My places',
     distance: 'Straight', routeDist: 'Route', eta: 'ETA', bearing: 'Bearing',
     gpsWait: 'Waiting for GPS…', gpsDenied: 'Location permission denied. Allow it in browser settings.',
@@ -67,6 +71,8 @@ window.LPN_I18N = {
     noDest: 'Select a destination', updateAvail: 'Update available — reopen the app to apply.',
   },
   es: {
+    sharedPts: 'Puntos compartidos', sharedRoads: 'Caminos compartidos', sharedList: 'Lista compartida (todos)', refreshShared: 'Actualizar lista compartida', sharedFail: 'No se pudo cargar la lista compartida', hide: 'Ocultar', sharedEdited: 'editado', sharedFetched: 'recibido',
+    sharedInfo: 'shared.geojson se descarga al iniciar la app (sin conexión se usa la última copia). Para publicar sus puntos, envíe su archivo [Exportar] al administrador.',
     title: 'Navegador Pozas', selectDest: 'Elegir destino…', ponds: 'Pozas', custom: 'Mis puntos',
     distance: 'Línea recta', routeDist: 'Ruta', eta: 'Tiempo est.', bearing: 'Rumbo',
     gpsWait: 'Esperando GPS…', gpsDenied: 'Permiso de ubicación denegado. Habilítelo en el navegador.',
