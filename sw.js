@@ -1,5 +1,5 @@
 /* 오프라인용 Service Worker: 앱 파일 + 위성 타일 캐시 */
-const APP_CACHE = 'lpn-app-v4';
+const APP_CACHE = 'lpn-app-v5';
 const TILE_CACHE = 'lpn-tiles-v1';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
@@ -10,7 +10,8 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(APP_CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // HTTP 캐시를 거치지 않고 서버 최신본으로 저장
+  e.waitUntil(caches.open(APP_CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('lpn-') && k !== APP_CACHE && k !== TILE_CACHE).map(k => caches.delete(k))))
@@ -52,12 +53,19 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // 앱 파일: 캐시 즉시 응답 + 백그라운드 갱신 (stale-while-revalidate)
+  // 앱 파일: 네트워크 우선(서버 최신본 확인, 4초 제한) → 실패·오프라인 시 캐시
   if (url.origin === self.location.origin) {
     e.respondWith(caches.open(APP_CACHE).then(async c => {
+      const net = fetch(req, { cache: 'no-cache' }).then(res => { if (res.ok) c.put(req, res.clone()); return res; });
+      net.catch(() => {});
+      const timeout = new Promise(r => setTimeout(() => r(null), 4000));
+      try {
+        const res = await Promise.race([net, timeout]);
+        if (res) return res;
+      } catch (err) { /* 오프라인 */ }
       const hit = await c.match(req, { ignoreSearch: true });
-      const net = fetch(req).then(res => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => null);
-      return hit || (await net) || new Response('offline', { status: 503 });
+      if (hit) return hit;
+      try { return await net; } catch (err) { return new Response('offline', { status: 503 }); }
     }));
   }
 });
