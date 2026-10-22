@@ -139,3 +139,14 @@ button, select, input { font: inherit; color: inherit; }
 
 .cpin.shared span { border-color: #a3e635; color: #a3e635; }
 .cpin.shared.is-dest span { border-color: #f472b6; color: #f472b6; }
+
+/* 태블릿·가로 화면: 패널 폭 제한 */
+@media (min-width: 900px) {
+  .top { right: auto; width: 560px; }
+  .banners { right: auto; width: 560px; }
+  .sheet { left: 10px; right: auto; width: 520px; top: calc(76px + var(--safe-t)); bottom: 10px; max-height: none; border-radius: 18px; border: 1px solid var(--line); }
+  .nav { left: 10px; right: auto; width: 560px; bottom: 10px; border-radius: 18px; border: 1px solid var(--line); }
+  .fabs { bottom: calc(30px + var(--safe-b)); }
+  .leaflet-bottom.leaflet-left { bottom: 0; left: 580px; }
+  .leaflet-bottom.leaflet-right { bottom: 0; }
+}
