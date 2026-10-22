@@ -1,5 +1,170 @@
 {
   "type": "FeatureCollection",
   "lpn": { "updated": "2026-10-22", "note": "공용 목적지/도로. Point = 공용 지점(name, note, 선택: id), LineString = 공용 도로(name)" },
-  "features": []
+  "features": [  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.9567,
+     -25.259814
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "CP2 사무실",
+    "note": "사무실"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.957073,
+     -25.263752
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "LIMING Plant",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.958844,
+     -25.214749
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "주재원 숙소",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.956953,
+     -25.262304
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "CP2 탄산화 공장",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.957052,
+     -25.261123
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "CP2 포장 공장",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.957077,
+     -25.26461
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "PL Feed Pond",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.952358,
+     -25.212943
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "CP1 LP 공장",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.953413,
+     -25.210374
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "K Pond",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.95836,
+     -25.217755
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "DP Plant",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.960451,
+     -25.216055
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "CP 현지인 숙소",
+    "note": ""
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.950862,
+     -25.206911
+    ]
+   },
+   "properties": {
+    "lpn": "dest",
+    "name": "비행기 활주로",
+    "note": ""
+   }
+  }
+]
 }
