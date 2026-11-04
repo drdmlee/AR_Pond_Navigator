@@ -307,8 +307,8 @@
         if (draw || S.sim) return H.current.onClick(e);
         const div = document.createElement('div'); div.className = 'pop';
         div.innerHTML = '<b></b><div class="pop-sub"></div>';
-        div.querySelector('b').textContent = p.code + (p.name !== p.code ? ' · ' + p.name : '');
-        div.querySelector('.pop-sub').textContent = [p.group, p.line, p.stage, `${t('area')} ${(p.area_m2 / 10000).toFixed(1)} ha`, here ? fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d) : ''].filter(Boolean).join(' · ');
+        div.querySelector('b').textContent = p.name;
+        div.querySelector('.pop-sub').textContent = [p.name !== p.code ? 'ID ' + p.code : '', p.group, p.stage, `${t('area')} ${(p.area_m2 / 10000).toFixed(1)} ha`, here ? fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d) : ''].filter(Boolean).join(' · ');
         const b = document.createElement('button'); b.textContent = t('setDest');
         b.onclick = () => { setDestId(p.id); mapRef.current.closePopup(); };
         div.appendChild(b);
@@ -336,7 +336,7 @@
           color: isD ? '#f472b6' : col, weight: isD ? 3.5 : 1.5, opacity: hid ? 0.35 : 0.95,
           fillColor: isD ? '#f472b6' : col, fillOpacity: hid ? 0.04 : isD ? 0.3 : 0.16, bubblingMouseEvents: false,
         });
-        poly.bindTooltip(p.name !== p.code ? p.name : p.code.replace(/^CP\d_/, ''), { permanent: true, direction: 'center', className: 'pond-label' + (isD ? ' is-dest' : '') });
+        poly.bindTooltip(p.name, { permanent: true, direction: 'center', className: 'pond-label' + (isD ? ' is-dest' : '') });
         poly.on('click', e => H.current.onPondClick(p, e));
         g.addLayer(poly);
       });
@@ -537,7 +537,7 @@
       if (!here) { say(t('gpsWait')); return; }
       const txt = `[Pond Navi] ${here[0].toFixed(6)}, ${here[1].toFixed(6)} (±${Math.round(pos.acc || 0)} m)` +
         (pos.alt != null ? `, alt ${Math.round(pos.alt)} m` : '') + ` · ${new Date(pos.ts).toLocaleString()}` +
-        (near ? ` · ${near.inside ? t('inside') : t('near')} ${near.p.code}` : '') +
+        (near ? ` · ${near.inside ? t('inside') : t('near')} ${near.p.name}` : '') +
         `\nhttps://maps.google.com/?q=${here[0].toFixed(6)},${here[1].toFixed(6)}`;
       if (navigator.share) { try { await navigator.share({ text: txt }); return; } catch (e) { } }
       try { await navigator.clipboard.writeText(txt); say(t('copied')); } catch (e) { window.prompt('', txt); }
@@ -572,7 +572,7 @@
           <select className="dest-select" value=${destId} onChange=${e => chooseDest(e.target.value)} aria-label=${t('selectDest')}>
             <option value="">${t('selectDest')}</option>
             ${nearest.length > 0 && html`<optgroup label=${'📍 ' + t('near')}>
-              ${nearest.map(({ d, m }) => html`<option key=${'n' + d.id} value=${d.id}>${(d.type === 'custom' ? '★ ' : d.type === 'shared' ? '◆ ' : '') + (d.code || d.name)} · ${fmtDist(m)}</option>`)}
+              ${nearest.map(({ d, m }) => html`<option key=${'n' + d.id} value=${d.id}>${(d.type === 'custom' ? '★ ' : d.type === 'shared' ? '◆ ' : '') + d.name} · ${fmtDist(m)}</option>`)}
             </optgroup>`}
             ${sharedPts.some(c => !hidden.includes(c.id) || c.id === destId) && html`<optgroup label=${'◆ ' + t('sharedPts')}>
               ${sharedPts.filter(c => !hidden.includes(c.id) || c.id === destId).map(c => html`<option key=${c.id} value=${c.id}>◆ ${c.name}</option>`)}
@@ -581,7 +581,7 @@
               ${customs.map(c => html`<option key=${c.id} value=${c.id}>★ ${c.name}</option>`)}
             </optgroup>`}
             ${groups.map(({ g, items }) => html`<optgroup key=${g} label=${g.replace(/_/g, ' · ')}>
-              ${items.map(p => html`<option key=${p.id} value=${p.id}>${p.code}${p.name !== p.code ? ' · ' + p.name : ''}</option>`)}
+              ${items.map(p => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}
             </optgroup>`)}
           </select>
           <button className="ibtn" onClick=${() => setSheet('menu')} aria-label=${t('menu')}>☰</button>
@@ -613,8 +613,8 @@
                 <span className="arrow-mode">${heading != null ? '▲' : 'N'}</span>
               </div>
               <div className="nav-main">
-                <div className="nav-name">${dest.type === 'custom' ? '★ ' + dest.name : dest.type === 'shared' ? '◆ ' + dest.name : dest.code + (dest.name !== dest.code ? ' · ' + dest.name : '')}
-                  ${near && html`<span className="nav-near"> · ${near.inside ? t('inside') : t('near')} ${near.p.code}</span>`}</div>
+                <div className="nav-name">${dest.type === 'custom' ? '★ ' + dest.name : dest.type === 'shared' ? '◆ ' + dest.name : dest.name}
+                  ${near && html`<span className="nav-near"> · ${near.inside ? t('inside') : t('near')} ${near.p.name}</span>`}</div>
                 ${arrived ? html`<div className="nav-big">🏁 ${t('arrived')}</div>` : html`
                   <div className="nav-big">${fmtDist(remain)}<small>${routeRes && routeRes.ok ? t('routeDist') : t('distance')}</small></div>
                   <div className="nav-sub">
@@ -664,7 +664,7 @@
                 ${hidden.length > 0 && html`<button className="link" onClick=${() => setHidden([])}>${t('restoreAll')}</button>`}</h4>
               <input className="search" placeholder=${t('filter')} value=${filter} onChange=${e => setFilter(e.target.value)} />
               ${ponds.filter(p => !q || (p.code + ' ' + p.name).toUpperCase().includes(q)).map(p => { const hid = hidden.includes(p.id); return html`<div className=${'row' + (hid ? ' dim' : '')} key=${p.id}>
-                <div className="row-main" onClick=${() => !hid && chooseDest(p.id)}><b>${p.code}${p.name !== p.code ? ' · ' + p.name : ''}</b><small>${(p.area_m2 / 10000).toFixed(1)} ha${here ? ' · ' + fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d) : ''}</small></div>
+                <div className="row-main" onClick=${() => !hid && chooseDest(p.id)}><b>${p.name}</b><small>${p.name !== p.code ? p.code + ' · ' : ''}${(p.area_m2 / 10000).toFixed(1)} ha${here ? ' · ' + fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d) : ''}</small></div>
                 ${!hid && html`<button className="go" onClick=${() => chooseDest(p.id)}>➜</button>`}
                 <button className=${hid ? 'restore' : 'del'} onClick=${() => toggleHide(p.id)}>${hid ? t('restore') : t('del')}</button>
               </div>`; })}`}

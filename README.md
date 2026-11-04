@@ -65,7 +65,7 @@ lib/          React 18.3.1, Leaflet 1.9.4, htm 3.1.1 (로컬 포함 → CDN 불�
 ## 7. Pond Box 목록 (grid_boxes.geojson)
 - 앱은 시작할 때 저장소 루트의 `grid_boxes.geojson`을 자동으로 받습니다(네트워크 우선, 오프라인이면 마지막 수신본, 최초 실행 실패 시 `js/ponds.js` 내장 예비본).
 - **Box 추가·수정·삭제**: 수정한 `grid_boxes.geojson`을 GitHub 저장소에 **같은 이름으로 업로드**(Add file → Upload files → Commit) → 1–2분 후 모든 사용자에게 반영.
-- 형식: GeoJSON FeatureCollection, Polygon(또는 MultiPolygon), `properties.id` 필수(예: `BOX_CP1_PC-R1-C1`). 표시 이름은 `BOX_` 접두어를 뺀 값, 구역은 `-` 앞부분(예: `CP1_PC`). 선택: `name`, `line`, `stage`, `color`, `area_sqm`.
+- 형식: GeoJSON FeatureCollection, Polygon(또는 MultiPolygon), `properties.id` 필수(예: `BOX_CP1_PC-R1-C1`). 표시 이름은 `properties.line`(없으면 `name`, 둘 다 없으면 `BOX_`를 뺀 id), 구역은 `-` 앞부분(예: `CP1_PC`). 선택: `name`, `line`, `stage`, `color`, `area_sqm`.
 - id가 중복되면 두 번째부터 `id~line`으로 구분해 표시하고, 앱 **메뉴 → 데이터**에 경고를 띄웁니다.
 - 사용자의 목적지·숨김 설정은 id 기준으로 유지됩니다(id를 바꾸면 해당 Box 설정은 초기화).
 - 앱 **메뉴 → 데이터 → 가져오기**로 GeoJSON 또는 `[{id, name, corners:[[위도,경도],...]}]` 배열 파일을 불러오면 **그 기기에서만** Box 목록을 바꿔 볼 수 있습니다(되돌리기: "서버 Pond 목록으로 되돌리기").

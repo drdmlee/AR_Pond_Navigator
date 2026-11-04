@@ -104,7 +104,7 @@
       const group = String(pr.group || (code.includes('-') ? code.split('-')[0] : (pr.stage || 'Pond')));
       const site = group.split('_')[0];
       ponds.push({
-        id: 'pond:' + code, type: 'pond', code, name: pr.name && pr.name !== rawId ? String(pr.name) : code,
+        id: 'pond:' + code, type: 'pond', code, name: String((pr.name && pr.name !== rawId ? pr.name : '') || pr.line || code),
         group, site, line: pr.line || '', stage: pr.stage || '', color: pr.color || null,
         area_m2: +(pr.area_sqm || pr.area_m2) || ringArea(ring), ring, center: centroid(ring),
       });
