@@ -44,7 +44,7 @@ lib/          React 18.3.1, Leaflet 1.9.4, htm 3.1.1 (로컬 포함 → CDN 불�
 - **제방 주행 가정**: 실제로 주행할 수 없는 제방이 있으면 설정에서 끄거나, 실제 주행로를 기록해 사용하세요.
 - **Esri 타일 오프라인 저장**: Esri 이용약관 범위 안에서 사용하세요.
 - **iOS**: 나침반은 설정에서 켤 때 권한을 요청합니다. 화면 꺼짐 방지는 iOS 16.4 이상에서 지원됩니다.
-- **앱 갱신**: 파일을 바꾸면 `sw.js`의 `APP_CACHE` 버전(`lpn-app-vN`)을 올려야 폰에 확실히 반영됩니다.
+- **앱 갱신**: 앱 파일은 항상 서버 최신본을 먼저 확인합니다(4초 내 응답 없거나 오프라인이면 캐시). 구조를 크게 바꿀 때는 `sw.js`의 `APP_CACHE` 버전도 올리세요.
 
 ## 5. GitHub Pages 배포 (수동)
 1. GitHub에서 새 저장소 생성 (예: `AR_Pond_Navigator`)
@@ -61,4 +61,12 @@ lib/          React 18.3.1, Leaflet 1.9.4, htm 3.1.1 (로컬 포함 → CDN 불�
   2. 관리자: GitHub에서 `shared.geojson`을 열고 ✏️(Edit)를 누릅니다. 받은 파일의 `features` 항목을 기존 `features` 배열에 붙여 넣고, `lpn.updated` 날짜를 고친 뒤 **Commit changes**를 누릅니다.
   3. 1–2분 뒤 사용자 앱에 반영됩니다(앱 재실행 또는 **공용 목록 갱신**).
 - Point의 `properties.id`를 지정하면 이름을 바꿔도 사용자의 숨김/목적지 설정이 유지됩니다.
+
+## 7. Pond Box 목록 (grid_boxes.geojson)
+- 앱은 시작할 때 저장소 루트의 `grid_boxes.geojson`을 자동으로 받습니다(네트워크 우선, 오프라인이면 마지막 수신본, 최초 실행 실패 시 `js/ponds.js` 내장 예비본).
+- **Box 추가·수정·삭제**: 수정한 `grid_boxes.geojson`을 GitHub 저장소에 **같은 이름으로 업로드**(Add file → Upload files → Commit) → 1–2분 후 모든 사용자에게 반영.
+- 형식: GeoJSON FeatureCollection, Polygon(또는 MultiPolygon), `properties.id` 필수(예: `BOX_CP1_PC-R1-C1`). 표시 이름은 `BOX_` 접두어를 뺀 값, 구역은 `-` 앞부분(예: `CP1_PC`). 선택: `name`, `line`, `stage`, `color`, `area_sqm`.
+- id가 중복되면 두 번째부터 `id~line`으로 구분해 표시하고, 앱 **메뉴 → 데이터**에 경고를 띄웁니다.
+- 사용자의 목적지·숨김 설정은 id 기준으로 유지됩니다(id를 바꾸면 해당 Box 설정은 초기화).
+- 앱 **메뉴 → 데이터 → 가져오기**로 GeoJSON 또는 `[{id, name, corners:[[위도,경도],...]}]` 배열 파일을 불러오면 **그 기기에서만** Box 목록을 바꿔 볼 수 있습니다(되돌리기: "서버 Pond 목록으로 되돌리기").
 

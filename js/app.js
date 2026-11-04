@@ -4,7 +4,7 @@
   const { useState, useEffect, useRef, useMemo } = React;
   const html = htm.bind(React.createElement);
   const G = window.LPNGeo;
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
 
   // ---------- 저장소 ----------
   const LS = {
@@ -22,7 +22,9 @@
   const TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   const TILE_CACHE = 'lpn-tiles-v1';
   const OSM_BBOX = [-25.32, -67.06, -25.17, -66.90]; // s,w,n,e
-  const SITE_COLORS = { CP1: '#38bdf8', CP2: '#2dd4bf', DP: '#fbbf24' };
+  const PONDS_FILE = 'grid_boxes.geojson';
+  const GROUP_PALETTE = ['#38bdf8', '#2dd4bf', '#fbbf24', '#a78bfa', '#4ade80', '#fb923c', '#f472b6', '#e879f9', '#facc15', '#60a5fa', '#34d399', '#f87171'];
+  const groupColor = (() => { const m = new Map(); return g => { if (!m.has(g)) m.set(g, GROUP_PALETTE[m.size % GROUP_PALETTE.length]); return m.get(g); }; })();
   const ROAD_STYLE = {
     u: { color: '#fde047', weight: 3.5, opacity: 0.9 },
     t: { color: '#fde047', weight: 2.5, opacity: 0.85, dashArray: '7 5' },
@@ -34,7 +36,9 @@
     lang: 'ko', arriveRadius: 30, defSpeed: 20, keepAwake: true, pondTarget: 'edge', maxOff: 1500,
     showRoads: true, showLabels: true, compass: false, sim: false, zMin: 12, zMax: 17, dikes: true,
   };
-  const BASE_PONDS = G.parsePonds(window.LPN_PONDS_RAW);
+  const FALLBACK_PONDS = G.pondsFromData(window.LPN_PONDS_FALLBACK).ponds;
+  const stripPond = p => ({ code: p.code, name: p.name, group: p.group, site: p.site, line: p.line, stage: p.stage, color: p.color, area_m2: p.area_m2, ring: p.ring });
+  const fromStore = arr => arr.map(p => ({ ...p, id: 'pond:' + p.code, type: 'pond', center: G.centroid(p.ring) }));
   const SNAP_ROADS = G.parseRoads(window.LPN_ROADS_RAW);
 
   const fmtDist = m => m == null || !isFinite(m) ? '—' : m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(m < 10000 ? 2 : 1) + ' km';
@@ -68,8 +72,10 @@
     const dict = window.LPN_I18N[S.lang] || window.LPN_I18N.ko;
     const t = k => dict[k] || window.LPN_I18N.ko[k] || k;
 
-    const [pondOverride, setPondOverride] = usePersist('pondsOverride', null);
-    const ponds = useMemo(() => pondOverride ? pondOverride.map(p => G.mkPond(p.code, p.site, p.string, p.pond, p.area_m2, p.ring)) : BASE_PONDS, [pondOverride]);
+    const [pondOverride, setPondOverride] = usePersist('pondsOverride2', null);   // 이 기기에서 가져온 Pond 파일 (기기 전용)
+    const [pondMaster, setPondMaster] = usePersist('pondsMaster', null);         // 서버 grid_boxes.geojson 마지막 수신본
+    const ponds = useMemo(() => pondOverride ? fromStore(pondOverride) : pondMaster ? fromStore(pondMaster.ponds) : FALLBACK_PONDS, [pondOverride, pondMaster]);
+    const pondSource = pondOverride ? 'import' : pondMaster ? 'server' : 'builtin';
     const [customs, setCustoms] = usePersist('customs', []);
     const [shared, setShared] = usePersist('shared', null); // { fetched, updated, points, roads }
     const sharedPts = shared ? shared.points : [];
@@ -117,7 +123,17 @@
         if (manual) say(`${t('sharedPts')} ${d.points.length} · ${t('sharedRoads')} ${d.roads.length}`);
       } catch (e) { if (manual) say(t('sharedFail') + ' (' + e.message + ')', 4000); }
     }
-    useEffect(() => { refreshShared(false); }, []);
+    async function refreshPonds(manual) {
+      try {
+        const r = await fetch(PONDS_FILE + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const { ponds: list, warn } = G.pondsFromData(await r.json());
+        if (!list.length) throw new Error('Pond 0');
+        setPondMaster({ fetched: new Date().toISOString(), ponds: list.map(stripPond), warn });
+        if (manual) say(`${t('ponds')} ${list.length}` + (warn.length ? ` · ⚠ ${warn.length}` : ''));
+      } catch (e) { if (manual) say(t('pondsFail') + ' (' + e.message + ')', 4000); }
+    }
+    useEffect(() => { refreshShared(false); refreshPonds(false); }, []);
 
     // ---------- GPS ----------
     useEffect(() => {
@@ -291,8 +307,8 @@
         if (draw || S.sim) return H.current.onClick(e);
         const div = document.createElement('div'); div.className = 'pop';
         div.innerHTML = '<b></b><div class="pop-sub"></div>';
-        div.querySelector('b').textContent = p.code;
-        div.querySelector('.pop-sub').textContent = `${t('site')} ${p.site} · ${t('area')} ${(p.area_m2 / 10000).toFixed(1)} ha` + (here ? ` · ${fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d)}` : '');
+        div.querySelector('b').textContent = p.code + (p.name !== p.code ? ' · ' + p.name : '');
+        div.querySelector('.pop-sub').textContent = [p.group, p.line, p.stage, `${t('area')} ${(p.area_m2 / 10000).toFixed(1)} ha`, here ? fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d) : ''].filter(Boolean).join(' · ');
         const b = document.createElement('button'); b.textContent = t('setDest');
         b.onclick = () => { setDestId(p.id); mapRef.current.closePopup(); };
         div.appendChild(b);
@@ -315,12 +331,12 @@
     useEffect(() => {
       const g = lay.current.ponds; g.clearLayers();
       ponds.forEach(p => {
-        const col = SITE_COLORS[p.site] || '#a3e635', isD = p.id === destId, hid = hidden.includes(p.id);
+        const col = p.color || groupColor(p.group), isD = p.id === destId, hid = hidden.includes(p.id);
         const poly = L.polygon(p.ring, {
           color: isD ? '#f472b6' : col, weight: isD ? 3.5 : 1.5, opacity: hid ? 0.35 : 0.95,
           fillColor: isD ? '#f472b6' : col, fillOpacity: hid ? 0.04 : isD ? 0.3 : 0.16, bubblingMouseEvents: false,
         });
-        poly.bindTooltip(p.code.replace('CP2_', ''), { permanent: true, direction: 'center', className: 'pond-label' + (isD ? ' is-dest' : '') });
+        poly.bindTooltip(p.name !== p.code ? p.name : p.code.replace(/^CP\d_/, ''), { permanent: true, direction: 'center', className: 'pond-label' + (isD ? ' is-dest' : '') });
         poly.on('click', e => H.current.onPondClick(p, e));
         g.addLayer(poly);
       });
@@ -491,6 +507,13 @@
       rd.onload = () => {
         try {
           const j = JSON.parse(rd.result);
+          if (Array.isArray(j)) { // Pond 배열 형식 (lipond_ponds_config)
+            const { ponds: list, warn } = G.pondsFromData(j);
+            if (!list.length) throw new Error('Pond 0');
+            setPondOverride(list.map(stripPond));
+            say(`${t('importDone')}: ${t('ponds')} ${list.length}` + (warn.length ? ` · ⚠ ${warn.length}` : ''), 4000);
+            return;
+          }
           if (j.type !== 'FeatureCollection' || !Array.isArray(j.features)) throw new Error('GeoJSON FeatureCollection');
           const nc = [], nr = [], np = [];
           for (const f of j.features) {
@@ -498,17 +521,12 @@
             if (g.type === 'Point') nc.push({ id: 'c:' + uid(), name: p.name || p.code || 'Point', note: p.note || '', lat: g.coordinates[1], lon: g.coordinates[0], created: Date.now() });
             else if (g.type === 'LineString') nr.push({ id: 'u:' + uid(), name: p.name || 'Road', coords: g.coordinates.map(([x, y]) => [y, x]), source: p.source || 'import', created: Date.now() });
             else if (g.type === 'MultiLineString') g.coordinates.forEach(ls => nr.push({ id: 'u:' + uid(), name: p.name || 'Road', coords: ls.map(([x, y]) => [y, x]), source: 'import', created: Date.now() }));
-            else if ((g.type === 'Polygon' || g.type === 'MultiPolygon') && p.code) {
-              let ring = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0];
-              ring = ring.map(([x, y]) => [y, x]);
-              if (ring.length > 3 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) ring.pop();
-              np.push({ code: p.code, site: p.site_code || p.site || p.code.split(/[-_]/)[0], string: p.string_code || '', pond: p.pond_code || '', area_m2: p.area_m2 || 0, ring });
-            }
+            else if (g.type === 'Polygon' || g.type === 'MultiPolygon') np.push(f);
           }
           const key = c => c.name + '@' + c.lat.toFixed(6) + ',' + c.lon.toFixed(6);
           if (nc.length) setCustoms(cs => { const ks = new Set(cs.map(key)); return [...cs, ...nc.filter(c => !ks.has(key(c)))]; });
           if (nr.length) setUserRoads(rs => [...rs, ...nr]);
-          if (np.length) setPondOverride(np);
+          if (np.length) { const { ponds: list } = G.pondsFromData({ type: 'FeatureCollection', features: np }); if (list.length) setPondOverride(list.map(stripPond)); }
           if (j.lpn && Array.isArray(j.lpn.hidden)) setHidden(h => [...new Set([...h, ...j.lpn.hidden])]);
           say(`${t('importDone')}: ★${nc.length} · ${t('tabRoads')} ${nr.length}` + (np.length ? ` · ${t('ponds')} ${np.length}` : ''), 4000);
         } catch (e) { say('Import: ' + e.message, 4000); }
@@ -533,7 +551,7 @@
     const groups = useMemo(() => {
       const m = new Map();
       ponds.forEach(p => { if (hidden.includes(p.id) && p.id !== destId) return; if (!m.has(p.group)) m.set(p.group, []); m.get(p.group).push(p); });
-      return [...m.entries()].map(([g, items]) => ({ g, items }));
+      return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([g, items]) => ({ g, items }));
     }, [ponds, hidden, destId]);
     const nearest = useMemo(() => {
       if (!here) return [];
@@ -562,8 +580,8 @@
             ${customs.length > 0 && html`<optgroup label=${'★ ' + t('custom')}>
               ${customs.map(c => html`<option key=${c.id} value=${c.id}>★ ${c.name}</option>`)}
             </optgroup>`}
-            ${groups.map(({ g, items }) => html`<optgroup key=${g} label=${g.replace('_', ' · ')}>
-              ${items.map(p => html`<option key=${p.id} value=${p.id}>${p.code}</option>`)}
+            ${groups.map(({ g, items }) => html`<optgroup key=${g} label=${g.replace(/_/g, ' · ')}>
+              ${items.map(p => html`<option key=${p.id} value=${p.id}>${p.code}${p.name !== p.code ? ' · ' + p.name : ''}</option>`)}
             </optgroup>`)}
           </select>
           <button className="ibtn" onClick=${() => setSheet('menu')} aria-label=${t('menu')}>☰</button>
@@ -595,8 +613,8 @@
                 <span className="arrow-mode">${heading != null ? '▲' : 'N'}</span>
               </div>
               <div className="nav-main">
-                <div className="nav-name">${dest.type === 'custom' ? '★ ' + dest.name : dest.type === 'shared' ? '◆ ' + dest.name : dest.code}
-                  ${near && html`<span className="nav-near"> · ${near.inside ? t('inside') : t('near')} ${near.p.code.replace('CP2_', '')}</span>`}</div>
+                <div className="nav-name">${dest.type === 'custom' ? '★ ' + dest.name : dest.type === 'shared' ? '◆ ' + dest.name : dest.code + (dest.name !== dest.code ? ' · ' + dest.name : '')}
+                  ${near && html`<span className="nav-near"> · ${near.inside ? t('inside') : t('near')} ${near.p.code}</span>`}</div>
                 ${arrived ? html`<div className="nav-big">🏁 ${t('arrived')}</div>` : html`
                   <div className="nav-big">${fmtDist(remain)}<small>${routeRes && routeRes.ok ? t('routeDist') : t('distance')}</small></div>
                   <div className="nav-sub">
@@ -645,8 +663,8 @@
               <h4>${t('ponds')} (${ponds.filter(p => !hidden.includes(p.id)).length}/${ponds.length})
                 ${hidden.length > 0 && html`<button className="link" onClick=${() => setHidden([])}>${t('restoreAll')}</button>`}</h4>
               <input className="search" placeholder=${t('filter')} value=${filter} onChange=${e => setFilter(e.target.value)} />
-              ${ponds.filter(p => !q || p.code.toUpperCase().includes(q)).map(p => { const hid = hidden.includes(p.id); return html`<div className=${'row' + (hid ? ' dim' : '')} key=${p.id}>
-                <div className="row-main" onClick=${() => !hid && chooseDest(p.id)}><b>${p.code}</b><small>${(p.area_m2 / 10000).toFixed(1)} ha${here ? ' · ' + fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d) : ''}</small></div>
+              ${ponds.filter(p => !q || (p.code + ' ' + p.name).toUpperCase().includes(q)).map(p => { const hid = hidden.includes(p.id); return html`<div className=${'row' + (hid ? ' dim' : '')} key=${p.id}>
+                <div className="row-main" onClick=${() => !hid && chooseDest(p.id)}><b>${p.code}${p.name !== p.code ? ' · ' + p.name : ''}</b><small>${(p.area_m2 / 10000).toFixed(1)} ha${here ? ' · ' + fmtDist(G.nearestOnRing(here[0], here[1], p.ring).d) : ''}</small></div>
                 ${!hid && html`<button className="go" onClick=${() => chooseDest(p.id)}>➜</button>`}
                 <button className=${hid ? 'restore' : 'del'} onClick=${() => toggleHide(p.id)}>${hid ? t('restore') : t('del')}</button>
               </div>`; })}`}
@@ -693,6 +711,11 @@
               <label className="tog"><input type="checkbox" checked=${S.sim} onChange=${e => { setS({ sim: e.target.checked }); setPos(null); }} /> ${t('simMode')}</label>`}
 
             ${tab === 'data' && html`
+              <h4>▦ ${t('pondList')}</h4>
+              <p className="hint">${t('ponds')} ${ponds.length} · ${pondSource === 'import' ? t('pondSrcImport') : pondSource === 'server' ? PONDS_FILE + ' · ' + t('sharedFetched') + ' ' + new Date(pondMaster.fetched).toLocaleString() : t('pondSrcBuiltin')}</p>
+              ${pondMaster && pondMaster.warn && pondMaster.warn.length > 0 && html`<p className="hint small warn-txt">⚠ ${pondMaster.warn.join(' / ')}</p>`}
+              <p className="hint small">${t('pondInfo')}</p>
+              <div className="btn-row"><button onClick=${() => refreshPonds(true)}>⟳ ${t('refreshPonds')}</button></div>
               <h4>◆ ${t('sharedList')}</h4>
               <p className="hint">${t('sharedPts')} ${sharedPts.length} · ${t('sharedRoads')} ${sharedRoads.length}${shared && shared.updated ? ' · ' + t('sharedEdited') + ' ' + shared.updated : ''}${shared && shared.fetched ? ' · ' + t('sharedFetched') + ' ' + new Date(shared.fetched).toLocaleString() : ''}</p>
               <p className="hint small">${t('sharedInfo')}</p>
@@ -703,10 +726,10 @@
                 <button onClick=${shareLoc}>🆘 ${t('shareLoc')}</button>
                 <button onClick=${exportData}>⇪ ${t('exportData')}</button>
                 <label className="filebtn">⇩ ${t('importData')}<input type="file" accept=".geojson,.json,application/json" onChange=${e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; }} /></label>
-                ${pondOverride && html`<button onClick=${() => setPondOverride(null)}>↺ ${t('ponds')}: ${t('restore')} (93)</button>`}
+                ${pondOverride && html`<button onClick=${() => setPondOverride(null)}>↺ ${t('pondsUseServer')}</button>`}
                 <button className="danger" onClick=${resetAll}>${t('resetAll')}</button>
               </div>
-              <p className="hint small">AR_Pond_Navigator v${APP_VERSION} · ${t('ponds')} ${ponds.length}${pondOverride ? ' (import)' : ''} · Imagery © Esri · Roads © OpenStreetMap contributors (ODbL)</p>`}
+              <p className="hint small">AR_Pond_Navigator v${APP_VERSION} · ${t('ponds')} ${ponds.length} (${pondSource}) · Imagery © Esri · Roads © OpenStreetMap contributors (ODbL)</p>`}
           </div>
         </div>`}
 

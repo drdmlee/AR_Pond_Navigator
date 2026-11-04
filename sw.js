@@ -1,12 +1,12 @@
 /* 오프라인용 Service Worker: 앱 파일 + 위성 타일 캐시 */
-const APP_CACHE = 'lpn-app-v5';
+const APP_CACHE = 'lpn-app-v6';
 const TILE_CACHE = 'lpn-tiles-v1';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './lib/leaflet.css', './lib/leaflet.js', './lib/react.production.min.js', './lib/react-dom.production.min.js', './lib/htm.umd.js',
   './lib/images/marker-icon.png', './lib/images/marker-shadow.png', './lib/images/layers.png',
   './js/ponds.js', './js/roads.js', './js/geo.js', './js/i18n.js', './js/app.js',
-  './icons/icon-192.png', './icons/icon-512.png', './shared.geojson',
+  './icons/icon-192.png', './icons/icon-512.png', './shared.geojson', './grid_boxes.geojson',
 ];
 
 self.addEventListener('install', e => {

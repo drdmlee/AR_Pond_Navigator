@@ -70,6 +70,48 @@
     const group = code.split('-')[0];
     return { id: 'pond:' + code, type: 'pond', name: code, code, site, group, string: str, pond, area_m2: area, ring, center: centroid(ring) };
   }
+  // ---- Pond Box 기준 목록 파서 ----
+  // 지원 형식: ① GeoJSON FeatureCollection(Polygon/MultiPolygon, properties.id|code|name)
+  //           ② 배열 [{ id, name, corners:[[lat,lon],...] }, ...] (lipond_ponds_config 형식)
+  function ringArea(ring) {
+    const P = ring.map(q => proj(...q)); let s = 0;
+    for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; s += a[0] * b[1] - b[0] * a[1]; }
+    return Math.abs(s) / 2;
+  }
+  function pondsFromData(data) {
+    const items = [], warn = [];
+    if (data && data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+      data.features.forEach((f, i) => {
+        const g = f && f.geometry, pr = (f && f.properties) || {};
+        if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return;
+        const outer = g.type === 'Polygon' ? g.coordinates[0] : (g.coordinates[0] || [])[0];
+        if (!outer) { warn.push('#' + (i + 1) + ' geometry'); return; }
+        items.push({ raw: pr, ring: outer.map(c => [c[1], c[0]]) });
+      });
+    } else if (Array.isArray(data)) {
+      data.forEach(o => { const c = o && (o.corners || o.coords); if (c) items.push({ raw: o, ring: c.map(q => [q[0], q[1]]) }); });
+    } else throw new Error('GeoJSON FeatureCollection 또는 Pond 배열이 아닙니다');
+    const seen = new Map(), ponds = [];
+    items.forEach((it, i) => {
+      let ring = it.ring.filter(q => isFinite(q[0]) && isFinite(q[1]) && Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180);
+      if (ring.length > 3 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) ring = ring.slice(0, -1);
+      const pr = it.raw;
+      const rawId = String(pr.id || pr.code || pr.name || 'Pond ' + (i + 1));
+      if (ring.length < 3) { warn.push(rawId + ': 꼭짓점 부족'); return; }
+      let code = rawId.replace(/^BOX_/, '');
+      const n = (seen.get(code) || 0) + 1; seen.set(code, n);
+      if (n > 1) { warn.push(rawId + ': 중복 id → ' + code + '~' + (pr.line || n)); code = code + '~' + (pr.line || n); }
+      const group = String(pr.group || (code.includes('-') ? code.split('-')[0] : (pr.stage || 'Pond')));
+      const site = group.split('_')[0];
+      ponds.push({
+        id: 'pond:' + code, type: 'pond', code, name: pr.name && pr.name !== rawId ? String(pr.name) : code,
+        group, site, line: pr.line || '', stage: pr.stage || '', color: pr.color || null,
+        area_m2: +(pr.area_sqm || pr.area_m2) || ringArea(ring), ring, center: centroid(ring),
+      });
+    });
+    return { ponds, warn };
+  }
+
   function parseRoads(raw) {
     return raw.split(';').filter(Boolean).map((r, i) => {
       const [kind, name, s] = r.split('|');
@@ -374,5 +416,5 @@
     return out;
   }
 
-  window.LPNGeo = { proj, unproj, haversine, bearing, compass8, pointInRing, nearestOnRing, centroid, parsePonds, mkPond, parseRoads, buildGraph, route, makeObstacles, remainingAlong, pointAhead, simplify, lineLength, tilesForBBox };
+  window.LPNGeo = { proj, unproj, haversine, bearing, compass8, pointInRing, nearestOnRing, centroid, parsePonds, mkPond, pondsFromData, ringArea, parseRoads, buildGraph, route, makeObstacles, remainingAlong, pointAhead, simplify, lineLength, tilesForBBox };
 })();
